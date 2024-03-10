@@ -1,0 +1,11 @@
+Forward : 5A A5 07 82 00 84 5A 01 00 04 
+Left:     5A A5 07 82 00 84 5A 01 00 05
+Right:    5A A5 07 82 00 84 5A 01 00 06
+U_Turn:   5A A5 07 82 00 84 5A 01 00 07
+
+/*Length is Length of actual data + 5 in decimal
+*/
+Forward Text: 5A A5 LENGTH 82 70 00 DATA FF FF 
+Left Text:    5A A5 LENGTH 82 80 00 DATA FF FF
+Right Text:   5A A5 LENGTH 82 90 00 DATA FF FF
+U_Turn Text:  5A A5 LENGTH 82 A0 00 DATA FF FF
