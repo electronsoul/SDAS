@@ -1,9 +1,17 @@
 #include <ec200_gnss.h>
 
+String getSpeedFromGps() {
+  String str = "";
+  //delay(50);
+  ModemUart.println(ModemGNSSCommandList[13]);
+  //delay(50);
+  str = getMessageModem();
+  return str;
+}
+
 String getLocationCoords() {
   String str = "";
   ModemUart.println(ModemGNSSCommandList[10]);
-  delay(500);
   str = getMessageModem();
   return str;
 }

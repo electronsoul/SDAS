@@ -10,7 +10,7 @@ String ModemGNSSCommandList[] = {"AT+QGPSCFG=\"outport\",\"none\"",
                                  "AT+QAGPS?", "AT+QAGPS=0", "AT+QAGPS=1",
                                  "AT+QGPSLOC=2", "AT+QGPSINFO?", 
                                  "AT+QGPSCFG=\"nmeasrc\",1",
-                                 "AT+QGPSGNMEA=\"GGA\"",
+                                 "AT+QGPSGNMEA=\"RMC\"",
                                  "AT+QGPSCFG=\"outport\",\"uart1\"",
                                  "AT+QGPSCFG=\"apflash\",0"
                                 };
@@ -18,5 +18,5 @@ String ModemGNSSCommandList[] = {"AT+QGPSCFG=\"outport\",\"none\"",
 int initModemGNSS(void);
 int checkGNSSRunState(void);
 String getLocationCoords(void);
-
+String getSpeedFromGps();
 #endif
