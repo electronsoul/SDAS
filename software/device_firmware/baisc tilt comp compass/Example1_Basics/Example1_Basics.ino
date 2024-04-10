@@ -1,36 +1,32 @@
 #include "ICM_20948.h"
+#include <cmath>
+#include "route.h"
+#include <ArduinoJson.h>
+
+const size_t bufferSize = JSON_OBJECT_SIZE(50);
+StaticJsonDocument<bufferSize> jsonBuffer;
+
 #define SERIAL_PORT Serial
 #define WIRE_PORT Wire
-
 ICM_20948_I2C myICM;
-unsigned long prevTime = 0;
-float prevSpeed = 0.0;
 
-float totalDistance = 0.0;
 
 #define Frequency 125                                                   // 8mS sample interval 
 #define Sensitivity 62.5                                                // Gyro sensitivity (see data sheet)
-
 #define Sensor_to_deg 1/(Sensitivity*Frequency)                         // Convert sensor reading to degrees
 #define Sensor_to_rad Sensor_to_deg*DEG_TO_RAD                          // Convert sensor reading to radians
 
+int dir = 1;
+unsigned long prevTime = 0;
+float prevSpeed = 0.0;
+float totalDistance = 0.0;
 int     Gyro_x,     Gyro_y,     Gyro_z;
 long    Gyro_x_cal, Gyro_y_cal, Gyro_z_cal;
 float   Gyro_pitch, Gyro_roll, Gyro_yaw;
 float   Gyro_pitch_output, Gyro_roll_output;
-
-// ----- Accelerometer
 long    Accel_x,      Accel_y,      Accel_z,    Accel_total_vector;
 float   Accel_pitch,  Accel_roll;
-
 int Gyro_synchronised = false;
-
-// ----- Compass heading
-/*
-  The magnetic declination for Lower Hutt, New Zealand is +22.5833 degrees
-  Obtain your magnetic declination from http://www.magnetic-declination.com/
-  Uncomment the declination code within the main loop() if you want True North.
-*/
 float   declinationAngle = +1.41666;                                             //  Degrees ... replace this declination with yours
 int     headingDegrees;
 float distance = 0;
@@ -39,7 +35,65 @@ float   Mag_x_dampened,       Mag_y_dampened,       Mag_z_dampened;
 float   Mag_x_hor, Mag_y_hor;
 float   Mag_pitch, Mag_roll;
 
-void compass(ICM_20948_AGMT_t agmt = myICM.agmt, ICM_20948_I2C *sensor = &myICM) {
+int routeindex = 0;
+int myCompass = 0;
+double lat1, lon1, lat2, lon2;
+double d1 = 0, d2 = 0;
+
+double toRadians(double degrees) {
+  return (degrees * PI ) / 180.0;
+}
+
+String getDirection(int d) { //current , previous
+  // Define compass directions
+  //const String directions[] = {"N", "NE", "E", "SE", "S", "SW", "W", "NW"};
+  // Divide the compass into sectors
+  //const int num_sectors = sizeof(directions) / sizeof(directions[0]);
+  //const double sector_size = 360.0 / num_sectors;
+  // Determine the sector
+  //int sector = static_cast<int>((bearing + sector_size / 2) / sector_size) % num_sectors;
+  // Assign directions based on the sector
+  /*if (sector == 0 || sector == 7) return "Forward";
+    else if (sector == 1 || sector == 2) return "Right";
+    else if (sector == 3 || sector == 4) return "Backward or U-Turn";
+    else if (sector == 5 || sector == 6) return "Left";
+    else return "Unknown";*/
+  String dir = "Forward";
+
+  if (d == 2) {
+    dir = "Right";
+  } else if (d == 3) {
+    dir = "Left";
+  }
+
+  return dir;
+}
+
+double calculateInitialCompassBearing(double lat1, double lon1, double lat2, double lon2) {
+  // Convert decimal degrees to radians
+  lat1 = toRadians(lat1);
+  lon1 = toRadians(lon1);
+  lat2 = toRadians(lat2);
+  lon2 = toRadians(lon2);
+
+  // Compute difference in longitudes
+  double diff_lon = lon2 - lon1;
+
+  // Compute the bearing using trigonometry
+  double y = sin(diff_lon) * cos(lat2);
+  double x = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(diff_lon);
+  double bearing = atan2(y, x);
+
+  // Convert bearing from radians to degrees
+  bearing = bearing * 180.0 / PI;
+
+  // Normalize to compass bearing (0 to 360 degrees)
+  double compass_bearing = fmod((bearing + 360), 360);
+
+  return compass_bearing;
+}
+
+void compass(ICM_20948_AGMT_t agmt, ICM_20948_I2C *sensor, int &myCompass) {
   Accel_x = agmt.acc.axes.x;
   Accel_y = agmt.acc.axes.y;
   Accel_z = agmt.acc.axes.z;
@@ -139,14 +193,14 @@ void compass(ICM_20948_AGMT_t agmt = myICM.agmt, ICM_20948_I2C *sensor = &myICM)
   prevacX = (((0.98 * agmt.acc.axes.x + 0.02 * agmt.acc.axes.z) / 16384 ) - 0.04);
   while ((millis() - tmp) < 100) {
     curacX = (((0.98 * agmt.acc.axes.x + 0.02 * agmt.acc.axes.z) / 16384 ) - 0.04);
-    curacX = (prevacX + curacX)/2;
+    curacX = (prevacX + curacX) / 2;
     prevacX = curacX;
     //float acX = sensor->accZ();
   }
-  if(curacX < 0.03 ){ //offset factor for stationary calib
+  if (curacX < 0.03 ) { //offset factor for stationary calib
     curacX = 0;
   }
-  Serial.print(curacX);
+  //Serial.print(curacX);
 
   float currentSpeed = prevSpeed + (curacX) * dt;
   if ((currentSpeed != prevSpeed) ) {
@@ -157,21 +211,17 @@ void compass(ICM_20948_AGMT_t agmt = myICM.agmt, ICM_20948_I2C *sensor = &myICM)
   prevSpeed = currentSpeed;
   prevTime = currentTime;
 
-  Serial.print(" \t");
-  Serial.print(currentSpeed); // Print speed with 4 decimal places
-  Serial.print(" \t");
-
-  //Serial.print("Distance: ");
-  Serial.print(totalDistance); // Print distance with 4 decimal places
-  Serial.print(" \t");
-  Serial.println(headingDegrees);
-
+  //Serial.print(" \t");
+  //Serial.print(currentSpeed); // Print speed with 4 decimal places
+  //Serial.print(" \t");
+  //Serial.print(totalDistance); // Print distance with 4 decimal places
+  //Serial.print(" \t");
+  //Serial.println(headingDegrees);
+  myCompass = headingDegrees;
 }
-
 
 void setup()
 {
-
   SERIAL_PORT.setTx(PB6);
   SERIAL_PORT.setRx(PB7);
   SERIAL_PORT.begin(115200);
@@ -184,9 +234,7 @@ void setup()
   bool initialized = false;
   while (!initialized)
   {
-
     myICM.begin(WIRE_PORT, 1);
-
     SERIAL_PORT.print(F("Initialization of the sensor returned: "));
     SERIAL_PORT.println(myICM.statusString());
     if (myICM.status != ICM_20948_Stat_Ok)
@@ -199,17 +247,26 @@ void setup()
       initialized = true;
     }
   }
+  //deserializeJson(jsonBuffer, String(routedata_sec85[0]));
+  //lat1 = jsonBuffer["lat"].as<double>();
+  //lon1 = jsonBuffer["lon"].as<double>();
 }
 
 void loop()
 {
-  if (myICM.dataReady())
-  {
-    myICM.getAGMT();
-    //printRawAGMT( myICM.agmt );
-    //printScaledAGMT(&myICM);
-    //ICM_20948_I2C *sensor = &myICM;
-    compass();
+  if ( routeindex < route_size) {
+    deserializeJson(jsonBuffer, String(routedata_sec85[routeindex]));
+    lat1 = jsonBuffer["lat"].as<double>();
+    lon1 = jsonBuffer["lon"].as<double>();
+    dir = jsonBuffer["dir"].as<int>();
+    
+    String direction_str = getDirection(dir);
+    Serial.print(direction_str);
+    lat1 = lat2;
+    lon1 = lon2;
+    
+    routeindex++;
+    Serial.println();
   }
-  delay(100);
+  delay(50);
 }
