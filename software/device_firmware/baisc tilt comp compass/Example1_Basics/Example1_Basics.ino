@@ -254,18 +254,34 @@ void setup()
 
 void loop()
 {
-  if ( routeindex < route_size) {
+  /*if ( routeindex < route_size) {
     deserializeJson(jsonBuffer, String(routedata_sec85[routeindex]));
     lat1 = jsonBuffer["lat"].as<double>();
     lon1 = jsonBuffer["lon"].as<double>();
     dir = jsonBuffer["dir"].as<int>();
-    
+
     String direction_str = getDirection(dir);
     Serial.print(direction_str);
     lat1 = lat2;
     lon1 = lon2;
-    
+
     routeindex++;
+    Serial.println();
+    }*/
+
+  if (myICM.dataReady())
+  {
+    myICM.getAGMT();
+    ICM_20948_I2C *sensor = &myICM;
+    ICM_20948_AGMT_t agmt = myICM.agmt;
+
+    //Serial.print(agmt.gyr.axes.x); Serial.print('\t');
+    //Serial.print(agmt.gyr.axes.y); Serial.print('\t');
+    //Serial.print(agmt.gyr.axes.z); Serial.print('\t');
+
+    Serial.print(sensor->gyrX()); Serial.print('\t');
+    //Serial.print(sensor->gyrY()); Serial.print('\t');
+    //Serial.print(sensor->gyrZ()); Serial.print('\t');
     Serial.println();
   }
   delay(50);
